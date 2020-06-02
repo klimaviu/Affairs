@@ -1,0 +1,314 @@
+---
+title: "Examining Affairs: an Exploratory Data Analysis Project"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, error = FALSE, message = FALSE, warning = FALSE)
+```
+
+This is an examination of Infidelity data, known as Fair's Affairs: a cross-section dataset from a survey conducted by Psychology Today in 1969.
+
+
+```{r, echo=FALSE}
+library(dplyr)
+library(tidyverse)
+library(ggplot2)
+library(AER)
+library(wesanderson)
+library(sjPlot)
+library(knitr)
+
+data("Affairs")
+
+Affairs <- as_tibble(Affairs)
+
+```
+
+
+An initial look: how are affairs distributed? Does gender play a role?
+
+```{r}
+Affairs %>% 
+  ggplot(aes(affairs))+
+  geom_bar(aes(fill = gender))+
+  scale_fill_manual(values=wes_palette(n=2, name = "GrandBudapest2"))
+```
+
+Let's introduce a new variable, faithful, for people who have never had an affair.
+A binary variation of the variable, faithful_num, will be useful for visualising proportions.
+
+```{r}
+Affairs <- Affairs %>% 
+  mutate(
+    faithful = factor(ifelse(Affairs$affairs == 0, "Yes", "No"), levels = c("No", "Yes")),
+    faithful_num = ifelse(Affairs$affairs == 0, 1, 0)
+  ) 
+```
+
+## Comparing the proportion of faithful indviduals by gender:
+
+```{r}
+Affairs%>%
+  group_by(gender) %>% 
+  summarise(faithful_prop = mean(faithful_num)) %>% 
+  ggplot(aes(gender, faithful_prop, fill = gender))+
+  geom_col()+
+  scale_fill_manual(values=wes_palette(n=2, name="GrandBudapest2"))+
+  ylab("Proportion of faithful individuals")
+```
+
+Women appear to have a slightly higher proportion of faithfulness than men.
+
+```{r}
+tab_model(lm(faithful_num ~ gender, data = Affairs), p.style = "stars")
+```
+
+However, if we regress faithfulness against only gender, the significance appears very low.
+Also, the R-squared and adjusted R- squared are both very small.
+
+## What is the overall count of faithful vs non-faithful individuals?
+
+```{r}
+table(Affairs$faithful)
+```
+
+What is that proportionatelly?
+
+```{r}
+faithful_perc <- paste(round(100*mean(Affairs$faithful_num),2), "%")
+(faithful_perc)
+```
+
+Okay, so we still have some faith in humanity left.
+
+## Does having children impact faithfulness?
+
+Let's peek at the overall distribution.
+
+```{r}
+Affairs %>% 
+  ggplot(aes(children, affairs))+
+  geom_count(aes(color = children))+
+  scale_color_manual(values = wes_palette(n=2, name = "GrandBudapest2"))
+```
+
+A bar chart:
+
+```{r}
+Affairs%>% 
+  ggplot(aes(children, fill = faithful))+
+  geom_bar()+
+  scale_fill_manual(values=wes_palette(n=2, name="GrandBudapest2"))
+```
+
+How does faithfulness look proportionatelly?
+
+```{r}
+Affairs %>% 
+  group_by(children) %>% 
+  summarise(faith_prop = mean(faithful_num))
+```
+
+A graph with proportions:
+
+```{r}
+Affairs %>% 
+  group_by(children) %>% 
+  summarise(faith_prop = mean(faithful_num)) %>% 
+  ggplot(aes(children, faith_prop, fill = children))+
+  geom_col()+
+  scale_fill_manual(values = wes_palette(n=2, name = "GrandBudapest2"))+
+  ylab("Proportion of faithful individuals")
+```
+
+So, people without children appear to have less affairs.
+
+## Are unhappy couples more likely to be unfaithful?
+
+Let's make life easier for ourselves by updating "rating" and "religiousness" to factors.
+
+```{r}
+Affairs <- Affairs %>% 
+  mutate(
+    rating =  factor(rating, levels = c("1", "2", "3", "4", "5")),
+    religiousness =  factor(religiousness, levels = c("1", "2", "3", "4", "5"))
+  )
+```
+
+Now a simple look at the overall distribution:
+
+```{r}
+Affairs %>% 
+  ggplot(aes(rating, affairs))+
+  geom_col(aes(fill = rating))+
+  scale_fill_manual(values = wes_palette(n = 5, name = "Moonrise3"))+
+  xlab("Happiness rating")
+```
+
+Weird, could unhappy couples really be less prone to affairs than very happy ones?
+Let's look at faithfulness proportions instead.
+
+```{r}
+Affairs %>% 
+  group_by(rating) %>% 
+  summarise(faith_prop = mean(faithful_num)) %>% 
+  ggplot(aes(rating, faith_prop))+
+  geom_col(aes(fill = rating))+
+  scale_fill_manual(values = wes_palette(n = 5, name = "GrandBudapest2", type = "continuous"))+
+  xlab("Happiness rating")+
+   ylab("Proportion of faithful individuals")
+```
+
+Okay, so when we look at faithfulness proportionatelly, it matches the common sense assumption that happier couples will be less prone to cheating.
+
+## What about religiousness, does it have an impact?
+
+An initial look:
+
+```{r}
+Affairs %>% 
+  ggplot(aes(religiousness, affairs))+
+  geom_col(aes(fill = religiousness))+
+  scale_fill_manual(values = wes_palette(n = 5, name = "Rushmore1", type = "continuous"))
+```
+
+Faithfulness proportionatelly:
+
+```{r}
+Affairs %>% 
+  group_by(religiousness) %>%
+  summarise(faith_prop = mean(faithful_num)) %>% 
+  ggplot()+
+  geom_col(aes(religiousness,faith_prop, fill = religiousness))+
+  scale_fill_manual(values = wes_palette(n = 5, name = "Rushmore1", type = "continuous"))+
+  ylab("Proportion of faithful individuals")
+```
+
+Anti-religous people seem to have a lower proportion of faithfulness than others.
+
+## Is there a link between religiousness and having children?
+
+Let's make a binary variable for having children.
+
+```{r}
+Affairs %>% 
+  mutate(
+    children_bin = ifelse(children == "yes", 1, 0)
+  ) %>% 
+  group_by(religiousness) %>% 
+  summarise(child_proportion = mean(children_bin))
+```
+
+A graph:
+
+```{r}
+Affairs %>% 
+  mutate(
+    children_bin = ifelse(children == "yes", 1, 0)
+  ) %>% 
+  group_by(religiousness) %>% 
+  summarise(child_proportion = mean(children_bin)) %>% 
+  ggplot(aes(religiousness, child_proportion))+
+  geom_col(aes(fill = religiousness))+
+  scale_fill_manual(values = wes_palette(n = 5, name = "Rushmore1", type = "continuous"))+
+  ylab("Proportion of individuals with children")
+```
+
+There appears to be a link.
+
+## What about education and faithfulness?
+
+Let's create a new facor with names and concatenate "some college" with "high school graduate" and "some graduate work" with "college graduate", as these two levels seem arbitrary.
+
+```{r}
+Affairs <- Affairs %>% 
+  mutate(
+    education_ft = factor(education, levels = c("9", "12", "14", "16", "17", "18", "20")),
+    education_ft = fct_recode(education_ft,
+                              "grade_school" = "9",
+                              "high_school" = "12",
+                              "high_school" = "14",
+                              "college" = "16",
+                              "college" = "17",
+                              "masters" = "18",
+                              "phd_or_similar" = "20"
+    )
+  )
+```
+
+Looking into faithfulness proportions again.
+
+```{r}
+Affairs %>% 
+  group_by(education_ft) %>% 
+  summarise(faithful_prop = mean(faithful_num)) %>% 
+  ggplot(aes(education_ft, faithful_prop))+
+  geom_col(aes(fill = education_ft))+
+  scale_fill_manual(values = wes_palette(n = 5, name = "GrandBudapest1", type = "continuous"))+
+  ylab("Proportion of faithful individuals")
+```
+
+There doesn't appear to be a clear connection.
+
+## What about occupation?
+
+```{r}
+Affairs %>% 
+  mutate(occupation = factor(occupation, levels = 1:7)) %>% 
+  group_by(occupation) %>% 
+  summarise(faithful_prop = mean(faithful_num))%>% 
+  ggplot(aes(occupation, faithful_prop))+
+  geom_col(aes(fill = occupation))+
+  scale_fill_manual(values = wes_palette(n = 7, name = "Royal2", type = "continuous"))+
+  ylab("Proportion of faithful individuals")
+```
+
+Again, no clear connection.
+
+## Linear regressions 
+
+```{r}
+lm1 <- lm(affairs ~ gender + children + religiousness + rating + yearsmarried + age , data = Affairs)
+tab_model(lm1, p.style = "stars")
+```
+
+Does including education change anything?
+
+```{r}
+lm2 <- lm(affairs ~ gender + children + religiousness + rating + yearsmarried + age + education, data = Affairs)
+tab_model(lm2, p.style = "stars")
+```
+
+Adjusted R-squared is now lower, which indicates a lower accuracy than before.
+
+## What about including occupation?
+
+```{r}
+lm3 <- lm(affairs ~ gender + children + religiousness + rating + yearsmarried + age + occupation, data = Affairs)
+tab_model(lm3, p.style = "stars")
+```
+
+Adjusted R-squared has increased, but occupation is not marked as significant.
+
+## How about including both?
+
+```{r}
+lm4 <- lm(affairs ~ gender + children + religiousness + rating + yearsmarried + age + occupation + education, data = Affairs)
+tab_model(lm4, p.style = "stars")
+```
+
+The adjusted R-squared is, again, lower and the two variables do not appear to be that significant.
+
+
+## The linear model from the documentation:
+
+```{r}
+fm_ols <- lm(affairs ~ age + yearsmarried + religiousness + occupation + rating,
+             data = Affairs)
+
+tab_model(fm_ols, p.style = "stars")
+```
+
+It seems like removing the "children" variable brings more accuracy to the model.
+
